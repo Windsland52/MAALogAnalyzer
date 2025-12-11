@@ -165,6 +165,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y fuse libfuse2 wget file
 
       - name: 安装依赖
         run: pnpm install
@@ -222,7 +223,7 @@ jobs:
             - 下载 `aarch64.dmg` 文件
 
             ### Linux (x64)
-            - 下载 `amd64.AppImage` 或 `.deb` 文件
+            - 下载 `.deb` 文件
 
             ### 更新内容
             请查看 [提交历史](https://github.com/${{ github.repository }}/commits/${{ github.ref_name }})
@@ -237,7 +238,6 @@ jobs:
             artifacts/*-artifacts/**/*.dmg
             artifacts/*-artifacts/**/*.app.tar.gz
             artifacts/*-artifacts/**/*.deb
-            artifacts/*-artifacts/**/*.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
