@@ -70,6 +70,10 @@ const message = useMessage()
 // 关于对话框
 const showAboutModal = ref(false)
 
+// check error type and get message
+const getErrorMessage = (err: unknown) => 
+  err instanceof Error ? err.message : String(err)
+
 // 处理文件上传
 const handleFileUpload = async (file: File) => {
   loading.value = true
@@ -77,8 +81,7 @@ const handleFileUpload = async (file: File) => {
     const content = await file.text()
     processLogContent(content)
   } catch (error) {
-    console.error(error)
-    message.error(String(error), { duration: 5000 })
+    message.error(getErrorMessage(error), { duration: 5000 })
   } finally {
     loading.value = false
   }
@@ -90,8 +93,7 @@ const handleContentUpload = (content: string) => {
   try {
     processLogContent(content)
   } catch (error) {
-    console.error(error)
-    message.error(String(error), { duration: 5000 })
+    message.error(getErrorMessage(error), { duration: 5000 })
   } finally {
     loading.value = false
   }
@@ -203,8 +205,7 @@ const handleSelectOperation = (node: NodeInfo, opIndex: number) => {
           top: 0,
           left: 0,
           right: 0,
-          height: viewMode === 'split' ? '50%' : '100%',
-          display: viewMode === 'analysis' || viewMode === 'split' ? 'block' : 'none'
+          height: viewMode === 'split' ? '50%' : '100%'
         }"
       >
         <n-split 
