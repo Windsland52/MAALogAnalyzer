@@ -40,12 +40,12 @@ jobs:
 
       - name: 检查构建产物
         run: |
-          if [ ! -d "src-tauri/target/release/bundle" ]; then
-            echo "构建产物目录不存在"
+          if (!(Test-Path "src-tauri/target/release/bundle")) {
+            Write-Host "构建产物目录不存在"
             exit 1
-          fi
-          echo "构建产物目录存在，列出内容："
-          find src-tauri/target/release/bundle -type f | head -10
+          }
+          Write-Host "构建产物目录存在，列出内容："
+          Get-ChildItem "src-tauri/target/release/bundle" -File | Select-Object -First 10 | ForEach-Object { $_.FullName }
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
