@@ -1,8 +1,8 @@
 import { createApp } from 'vue'
-import App from './App.vue'
+import Index from './Index.vue'
 import './style.css'
 
-const app = createApp(App)
+const app = createApp(Index)
 
 // 全局消息提示（用于 DetailView 中的复制功能）
 app.config.globalProperties.$message = {
