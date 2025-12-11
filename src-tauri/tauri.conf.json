@@ -47,7 +47,7 @@
       "identifier": "com.maa.log-analyzer",
       "longDescription": "MAA Framework Sink log visualization analysis tool, providing task flow analysis, and failure diagnosis.",
       "shortDescription": "MAA Log Analyzer",
-      "targets": ["dmg", "appimage", "deb"],
+      "targets": ["msi", "dmg", "appimage", "deb"],
       "windows": {
         "certificateThumbprint": null,
         "digestAlgorithm": "sha256",

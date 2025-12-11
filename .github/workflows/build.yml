@@ -38,6 +38,15 @@ jobs:
       - name: 构建应用
         run: pnpm tauri build
 
+      - name: 检查构建产物
+        run: |
+          if [ ! -d "src-tauri/target/release/bundle" ]; then
+            echo "构建产物目录不存在"
+            exit 1
+          fi
+          echo "构建产物目录存在，列出内容："
+          find src-tauri/target/release/bundle -type f | head -10
+
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
@@ -72,6 +81,15 @@ jobs:
       - name: 构建应用
         run: pnpm tauri build
 
+      - name: 检查构建产物
+        run: |
+          if [ ! -d "src-tauri/target/release/bundle" ]; then
+            echo "构建产物目录不存在"
+            exit 1
+          fi
+          echo "构建产物目录存在，列出内容："
+          find src-tauri/target/release/bundle -type f | head -10
+
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
@@ -105,6 +123,15 @@ jobs:
 
       - name: 构建应用
         run: pnpm tauri build
+
+      - name: 检查构建产物
+        run: |
+          if [ ! -d "src-tauri/target/release/bundle" ]; then
+            echo "构建产物目录不存在"
+            exit 1
+          fi
+          echo "构建产物目录存在，列出内容："
+          find src-tauri/target/release/bundle -type f | head -10
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
@@ -144,6 +171,15 @@ jobs:
 
       - name: 构建应用
         run: pnpm tauri build
+
+      - name: 检查构建产物
+        run: |
+          if [ ! -d "src-tauri/target/release/bundle" ]; then
+            echo "构建产物目录不存在"
+            exit 1
+          fi
+          echo "构建产物目录存在，列出内容："
+          find src-tauri/target/release/bundle -type f | head -10
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
