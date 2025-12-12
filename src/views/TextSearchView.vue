@@ -528,14 +528,22 @@ const jumpToLine = async (lineNumber: number) => {
         textarea.focus()
         textarea.setSelectionRange(charPos, charPos + lines[targetLineIndex].length)
         
-        const paddingTop = 12
-        const paddingBottom = 12
-        let lineHeight = 13 * 1.6
+        const style = window.getComputedStyle(textarea)
+        const paddingTop = parseFloat(style.paddingTop) || 12
+        const paddingBottom = parseFloat(style.paddingBottom) || 12
         
-        // 动态计算行高，避免大文件累积误差
-        if (lines.length > 50) {
+        // 优先使用 scrollHeight 计算平均行高，以消除累积误差
+        // 只有当行数较多时才使用此方法，避免小文件时的计算抖动
+        let lineHeight: number
+        if (lines.length > 100) {
           const contentHeight = textarea.scrollHeight - paddingTop - paddingBottom
           lineHeight = contentHeight / lines.length
+        } else {
+          lineHeight = parseFloat(style.lineHeight)
+          if (isNaN(lineHeight)) {
+            const fontSize = parseFloat(style.fontSize) || 13
+            lineHeight = fontSize * 1.6
+          }
         }
         
         const scrollTop = targetLineIndex * lineHeight + paddingTop - textarea.clientHeight / 2
