@@ -850,8 +850,8 @@ const loadContextLines = async (targetLine: number) => {
                     </n-text>
                   </n-flex>
                 </div>
-                <n-scrollbar style="flex: 1">
-                  <div :class="{ 'dark-theme': props.isDark }" style="padding: 12px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 13px; line-height: 1.6">
+                <n-scrollbar x-scrollable style="flex: 1" content-style="width: max-content; min-width: 100%;">
+                  <div :class="{ 'dark-theme': props.isDark }" style="padding: 12px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 13px; line-height: 1.6; width: max-content; min-width: 100%;">
                     <div 
                       v-for="(line, idx) in contextLines" 
                       :key="idx"
@@ -866,7 +866,7 @@ const loadContextLines = async (targetLine: number) => {
                       <span style="color: var(--n-text-color-disabled); margin-right: 12px; user-select: none">
                         {{ String(contextStartLine + idx).padStart(6, ' ') }}
                       </span>
-                      <span style="white-space: pre-wrap; word-break: break-all">{{ line }}</span>
+                      <span style="white-space: pre;">{{ line }}</span>
                     </div>
                   </div>
                 </n-scrollbar>
@@ -924,7 +924,7 @@ const loadContextLines = async (targetLine: number) => {
                 ref="virtualListRef"
                 :items="fileLines"
                 :item-size="22"
-                style="height: 100%; max-height: 100%; overflow-x: auto;"
+                style="height: 100%; max-height: 100%; overflow: auto;"
                 :class="['log-virtual-list', { 'dark-theme': props.isDark }]"
               >
                 <template #default="{ item, index }">
@@ -967,6 +967,8 @@ const loadContextLines = async (targetLine: number) => {
   white-space: pre;
   cursor: text;
   padding-right: 12px; /* Add some padding to the right */
+  width: max-content;
+  min-width: 100%;
 }
 
 .log-line:hover {
@@ -1059,5 +1061,54 @@ const loadContextLines = async (targetLine: number) => {
 /* Also apply to context lines in large file mode */
 .dark-theme .context-line span:last-child {
   color: #ffffffa2;
+}
+
+/* Force horizontal scroll for virtual list */
+.log-virtual-list :deep(.v-vl) {
+  overflow: auto !important;
+  scrollbar-width: auto !important; /* Override Naive UI's scrollbar-width: none */
+}
+
+.log-virtual-list :deep(.v-vl-items) {
+  min-width: 100%;
+  width: max-content !important;
+}
+
+.log-virtual-list :deep(.v-vl-item) {
+  width: max-content !important;
+  min-width: 100%;
+}
+
+/* Custom scrollbar styles for virtual list */
+.log-virtual-list :deep(.v-vl)::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.log-virtual-list :deep(.v-vl)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.log-virtual-list :deep(.v-vl)::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+}
+
+.log-virtual-list :deep(.v-vl)::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+/* Dark mode scrollbar */
+.dark-theme :deep(.v-vl)::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+.dark-theme :deep(.v-vl)::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Ensure scrollbar corner is styled */
+.log-virtual-list :deep(.v-vl)::-webkit-scrollbar-corner {
+  background: transparent;
 }
 </style>
