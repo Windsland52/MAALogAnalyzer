@@ -1,3 +1,4 @@
+
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { 
@@ -17,9 +18,17 @@ import {
   NSplit,
   NScrollbar,
   NIcon,
-  NSpin
+  NSpin,
+  NVirtualList,
+  NDivider
 } from 'naive-ui'
+import { parseLogLine } from '../utils/logHighlighter'
 import { SearchOutlined, FileTextOutlined, CloseOutlined } from '@vicons/antd'
+
+// Props
+const props = defineProps<{
+  isDark?: boolean
+}>()
 
 const searchText = ref('')
 const fileContent = ref('')  // 保留用于小文件（<5MB）
@@ -35,6 +44,7 @@ const selectedLine = ref<number | null>(null)  // 当前选中的行
 const searchHistory = ref<string[]>([])  // 搜索历史
 const showFileContent = ref(false)  // 是否显示文件内容（默认关闭以节省内存）
 const contentKey = ref(0)  // 用于强制重新渲染，释放内存
+const hideDebugInfo = ref(true)  // 是否隐藏调试信息（如 [Px...][Tx...][...cpp]），默认隐藏
 let abortSearch = false  // 中断搜索标志
 
 // 新增：流式加载相关
@@ -51,6 +61,15 @@ const quickSearchOptions = [
   '[ERR]',
   'display_width_='
 ]
+
+// 调试信息正则：匹配 [Px数字][Tx数字][Lx数字][文件名.cpp] 等模式
+const DEBUG_INFO_PATTERN = /\[P[xX]\d+\]|\[T[xX]\d+\]|\[L\d+\]|\[[^\]]+\.(cpp|h|hpp|c)\]/gi
+
+// 过滤调试信息
+const filterDebugInfo = (line: string): string => {
+  if (!hideDebugInfo.value) return line
+  return line.replace(DEBUG_INFO_PATTERN, '').replace(/\s{2,}/g, ' ').trim()
+}
 
 // 搜索结果
 interface SearchResult {
@@ -404,6 +423,21 @@ const countLinesInFile = async (file: File): Promise<number> => {
 
 // 高亮显示匹配文本
 const highlightMatch = (result: SearchResult) => {
+  const filteredLine = filterDebugInfo(result.line)
+  // 如果过滤后内容变化，重新计算匹配位置
+  if (hideDebugInfo.value && filteredLine !== result.line) {
+    // 在过滤后的内容中重新查找匹配
+    const matchText = result.line.substring(result.matchStart, result.matchEnd)
+    const newMatchStart = filteredLine.indexOf(matchText)
+    if (newMatchStart !== -1) {
+      const before = filteredLine.substring(0, newMatchStart)
+      const match = matchText
+      const after = filteredLine.substring(newMatchStart + matchText.length)
+      return { before, match, after }
+    }
+    // 匹配内容被过滤掉了，返回整行
+    return { before: filteredLine, match: '', after: '' }
+  }
   const before = result.line.substring(0, result.matchStart)
   const match = result.line.substring(result.matchStart, result.matchEnd)
   const after = result.line.substring(result.matchEnd)
@@ -480,24 +514,15 @@ const triggerFileSelect = () => {
 // 文件内容行数组（懒加载）
 const fileLines = computed(() => {
   if (!fileContent.value) return []
-  return fileContent.value.split('\n')
-})
-
-// 带行号的文件内容（用于显示）
-const fileContentWithLineNumbers = computed(() => {
-  if (!fileContent.value || !showFileContent.value) return ''
-  
-  const lines = fileLines.value
-  const numberedLines = lines.map((line, index) => {
-    const lineNum = (index + 1).toString().padStart(6, ' ')
-    return `${lineNum} | ${line}`
-  })
-  
-  return numberedLines.join('\n')
+  return fileContent.value.split('\n').map((line, index) => ({
+    key: index,
+    content: filterDebugInfo(line)
+  }))
 })
 
 // 跳转到指定行
 const jumpToLine = async (lineNumber: number) => {
+  console.log(`🔍 jumpToLine 被调用: lineNumber=${lineNumber}`)
   selectedLine.value = lineNumber
   
   // 大文件模式：读取上下文
@@ -508,50 +533,56 @@ const jumpToLine = async (lineNumber: number) => {
   }
   
   // 小文件模式：显示文件内容
-  if (!showFileContent.value) {
+  const needsInitialRender = !showFileContent.value
+  console.log(`📄 小文件模式: needsInitialRender=${needsInitialRender}, showFileContent=${showFileContent.value}`)
+  
+  if (needsInitialRender) {
     showFileContent.value = true
   }
   
-  // 使用文本搜索定位
-  setTimeout(() => {
-    const textarea = document.getElementById('file-content-display') as HTMLTextAreaElement
-    if (textarea && fileContentWithLineNumbers.value) {
-      const lines = fileContentWithLineNumbers.value.split('\n')
-      const targetLineIndex = lineNumber - 1
+  // 使用虚拟列表定位
+  const itemSize = 22 // 与模板中的 :item-size="22" 保持一致
+  const topOffset = 3 // 让目标行距离顶部偏移 3 行，这样更容易看到上下文
+  
+  const scrollToLine = () => {
+    console.log(`📜 scrollToLine: virtualListRef.value =`, virtualListRef.value)
+    if (virtualListRef.value) {
+      // 使用像素计算进行精确滚动
+      // 目标：让选中行显示在距离顶部约 3 行的位置
+      const targetIndex = Math.max(0, lineNumber - 1 - topOffset)
+      const scrollTop = targetIndex * itemSize
       
-      if (targetLineIndex >= 0 && targetLineIndex < lines.length) {
-        let charPos = 0
-        for (let i = 0; i < targetLineIndex; i++) {
-          charPos += lines[i].length
+      // 尝试找到内部的滚动容器并直接设置 scrollTop
+      const scrollContainer = virtualListRef.value.$el?.querySelector('.v-vl') as HTMLElement | null
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollTop
+        console.log(`✅ 直接设置 scrollTop = ${scrollTop}`)
+      } else {
+        // 回退：使用 scrollTo 方法
+        try {
+          virtualListRef.value.scrollTo({ index: targetIndex, behavior: 'auto' })
+          console.log(`✅ scrollTo({ index: ${targetIndex} }) 调用成功`)
+        } catch (e) {
+          console.error('scrollTo 失败:', e)
         }
-        
-        textarea.focus()
-        textarea.setSelectionRange(charPos, charPos + lines[targetLineIndex].length)
-        
-        const style = window.getComputedStyle(textarea)
-        const paddingTop = parseFloat(style.paddingTop) || 12
-        const paddingBottom = parseFloat(style.paddingBottom) || 12
-        
-        // 优先使用 scrollHeight 计算平均行高，以消除累积误差
-        // 只有当行数较多时才使用此方法，避免小文件时的计算抖动
-        let lineHeight: number
-        if (lines.length > 100) {
-          const contentHeight = textarea.scrollHeight - paddingTop - paddingBottom
-          lineHeight = contentHeight / lines.length
-        } else {
-          lineHeight = parseFloat(style.lineHeight)
-          if (isNaN(lineHeight)) {
-            const fontSize = parseFloat(style.fontSize) || 13
-            lineHeight = fontSize * 1.6
-          }
-        }
-        
-        const scrollTop = targetLineIndex * lineHeight + paddingTop - textarea.clientHeight / 2
-        textarea.scrollTop = Math.max(0, scrollTop)
       }
+    } else {
+      console.warn('⚠️ virtualListRef.value 为 null')
     }
-  }, 100)
+  }
+  
+  if (needsInitialRender) {
+    // 新渲染需要等待更长时间
+    console.log('⏳ 等待虚拟列表初次渲染...')
+    await nextTick()
+    setTimeout(scrollToLine, 150)
+  } else {
+    nextTick(scrollToLine)
+  }
 }
+
+const virtualListRef = ref<any>(null)
+
 
 // 加载指定行的上下文（大文件模式）
 const loadContextLines = async (targetLine: number) => {
@@ -726,6 +757,9 @@ const loadContextLines = async (targetLine: number) => {
                 <n-checkbox v-model:checked="useRegex">
                   正则表达式
                 </n-checkbox>
+                <n-checkbox v-model:checked="hideDebugInfo">
+                  隐藏调试标签
+                </n-checkbox>
               </n-flex>
               
               <!-- 快捷搜索 -->
@@ -877,8 +911,8 @@ const loadContextLines = async (targetLine: number) => {
                     </n-text>
                   </n-flex>
                 </div>
-                <n-scrollbar style="flex: 1">
-                  <div style="padding: 12px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 13px; line-height: 1.6">
+                <n-scrollbar x-scrollable style="flex: 1" content-style="width: max-content; min-width: 100%;">
+                  <div :class="{ 'dark-theme': props.isDark }" style="padding: 12px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 13px; line-height: 1.6; width: max-content; min-width: 100%;">
                     <div 
                       v-for="(line, idx) in contextLines" 
                       :key="idx"
@@ -893,7 +927,7 @@ const loadContextLines = async (targetLine: number) => {
                       <span style="color: var(--n-text-color-disabled); margin-right: 12px; user-select: none">
                         {{ String(contextStartLine + idx).padStart(6, ' ') }}
                       </span>
-                      <span style="white-space: pre-wrap; word-break: break-all">{{ line }}</span>
+                      <span style="white-space: pre;">{{ filterDebugInfo(line) }}</span>
                     </div>
                   </div>
                 </n-scrollbar>
@@ -945,32 +979,197 @@ const loadContextLines = async (targetLine: number) => {
               </n-empty>
             </div>
             
-            <!-- 小文件：完整内容显示 -->
-            <textarea
-              v-else
-              id="file-content-display"
-              readonly
-              :value="fileContentWithLineNumbers"
-              style="
-                flex: 1;
-                width: 100%;
-                border: none;
-                outline: none;
-                resize: none;
-                padding: 12px;
-                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-                font-size: 13px;
-                line-height: 1.6;
-                background-color: transparent;
-                color: inherit;
-                white-space: pre;
-                overflow-x: auto;
-                overflow-y: scroll;
-              "
-            />
+            <!-- 小文件：虚拟列表显示 -->
+            <div v-else style="flex: 1; height: 100%; overflow: hidden;">
+              <n-virtual-list
+                ref="virtualListRef"
+                :items="fileLines"
+                :item-size="22"
+                style="height: 100%; max-height: 100%; overflow: auto;"
+                :class="['log-virtual-list', { 'dark-theme': props.isDark }]"
+              >
+                <template #default="{ item, index }">
+                  <div 
+                    class="log-line"
+                    :class="{ 'selected-line': (index + 1) === selectedLine }"
+                    :data-line="index + 1"
+                    @click="selectedLine = index + 1"
+                  >
+                    <span class="line-number">{{ index + 1 }}</span>
+                    <span class="line-content">
+                      <span 
+                        v-for="(token, tIdx) in parseLogLine(item.content)" 
+                        :key="tIdx"
+                        :class="'token-' + token.type"
+                      >{{ token.content }}</span>
+                    </span>
+                  </div>
+                </template>
+              </n-virtual-list>
+            </div>
           </div>
         </n-card>
       </template>
     </n-split>
   </div>
 </template>
+
+<style scoped>
+.log-virtual-list {
+  /* Ensure the virtual list itself has a background for consistency */
+  background-color: var(--n-color); 
+}
+
+.log-line {
+  display: flex;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 22px;
+  white-space: pre;
+  cursor: text;
+  padding-right: 12px; /* Add some padding to the right */
+  width: max-content;
+  min-width: 100%;
+}
+
+.log-line:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.selected-line {
+  background-color: rgba(242, 201, 125, 0.2); /* var(--n-color-target) approx */
+}
+
+.line-number {
+  display: inline-block;
+  width: 50px;
+  text-align: right;
+  padding-right: 12px;
+  color: var(--n-text-color-disabled);
+  user-select: none;
+  border-right: 1px solid var(--n-border-color);
+  margin-right: 8px;
+  background-color: var(--n-color-modal);
+  flex-shrink: 0; /* Prevent line number from shrinking */
+}
+
+.line-content {
+  flex: 1;
+  white-space: nowrap; /* Keep line content on one line */
+}
+
+/* Syntax Highlighting Colors (VS Code Light Theme inspired) */
+.token-timestamp {
+  color: #098658; /* Green */
+}
+
+.token-level-info {
+  color: #0000ff; /* Blue */
+  font-weight: bold;
+}
+
+.token-level-warn {
+  color: #795e26; /* Yellow/Brown */
+  font-weight: bold;
+}
+
+.token-level-error {
+  color: #cd3131; /* Red */
+  font-weight: bold;
+}
+
+.token-level-debug {
+  color: #800080; /* Purple */
+}
+
+.token-string {
+  color: #a31515; /* Red/Brown */
+}
+
+.token-number {
+  color: #098658; /* Green */
+}
+
+.token-key {
+  color: #0451a5; /* Dark Blue */
+}
+
+.token-text {
+  color: #333;
+}
+
+/* Dark mode adjustments using class instead of media query */
+.dark-theme .log-line:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.dark-theme .line-number {
+  color: #666;
+  border-right-color: #333;
+  background-color: #1e1e1e;
+}
+
+.dark-theme .token-timestamp { color: #b5cea8; }
+.dark-theme .token-level-info { color: #569cd6; }
+.dark-theme .token-level-warn { color: #dcdcaa; }
+.dark-theme .token-level-error { color: #f44747; }
+.dark-theme .token-level-debug { color: #d16969; }
+.dark-theme .token-string { color: #ce9178; }
+.dark-theme .token-number { color: #b5cea8; }
+.dark-theme .token-key { color: #9cdcfe; }
+.dark-theme .token-text { color: #ffffffa2; }
+
+/* Also apply to context lines in large file mode */
+.dark-theme .context-line span:last-child {
+  color: #ffffffa2;
+}
+
+/* Force horizontal scroll for virtual list */
+.log-virtual-list :deep(.v-vl) {
+  overflow: auto !important;
+  scrollbar-width: auto !important; /* Override Naive UI's scrollbar-width: none */
+}
+
+.log-virtual-list :deep(.v-vl-items) {
+  min-width: 100%;
+  width: max-content !important;
+}
+
+.log-virtual-list :deep(.v-vl-item) {
+  width: max-content !important;
+  min-width: 100%;
+}
+
+/* Custom scrollbar styles for virtual list */
+.log-virtual-list :deep(.v-vl)::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.log-virtual-list :deep(.v-vl)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.log-virtual-list :deep(.v-vl)::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+}
+
+.log-virtual-list :deep(.v-vl)::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+/* Dark mode scrollbar */
+.dark-theme :deep(.v-vl)::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+.dark-theme :deep(.v-vl)::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Ensure scrollbar corner is styled */
+.log-virtual-list :deep(.v-vl)::-webkit-scrollbar-corner {
+  background: transparent;
+}
+</style>
