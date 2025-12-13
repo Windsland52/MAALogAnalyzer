@@ -212,17 +212,17 @@ jobs:
           body: |
             ## 📦 下载说明
 
-            ### Windows (x64)
-            - 下载 `.msi` 安装包
+            ### Windows
+            - **x64**: 下载 `x64.msi` 安装包
+            - **ARM64**: 下载 `aarch64.msi` 安装包
 
-            ### macOS (Intel 芯片)
-            - 下载 `x86_64.dmg` 文件
+            ### macOS
+            - **Intel 芯片**: 下载 `x64.dmg` 文件
+            - **Apple Silicon (M1/M2/M3)**: 下载 `aarch64.dmg` 文件
 
-            ### macOS (Apple Silicon M1/M2/M3)
-            - 下载 `aarch64.dmg` 文件
-
-            ### Linux (x64)
-            - 下载 `.deb` 文件
+            ### Linux
+            - **x64**: 下载 `amd64.deb` 文件
+            - **ARM64**: 下载 `arm64.deb` 文件
 
             ## 📝 更新内容
             ${{ needs.changelog.outputs.release_body }}
