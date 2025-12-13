@@ -34,14 +34,8 @@ jobs:
       - name: 安装 Rust 稳定版
         uses: dtolnay/rust-toolchain@stable
 
-      - name: 安装 WiX
-        run: |
-          $wixDir = "$env:TEMP\wix"
-          New-Item -ItemType Directory -Force -Path $wixDir
-          Invoke-WebRequest -Uri https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip -OutFile wix.zip
-          Expand-Archive -Path wix.zip -DestinationPath $wixDir -Force
-          echo "$wixDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          echo "WIX=$wixDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: 安装 WiX (仅 ARM64)
+        run: dotnet tool install --global wix
 
       - name: 安装 pnpm
         uses: pnpm/action-setup@v2
