@@ -188,9 +188,31 @@ jobs:
           name: linux-artifacts
           path: src-tauri/target/release/bundle/
 
+  # 生成 changelog
+  changelog:
+    name: Generate changelog
+    runs-on: ubuntu-latest
+    outputs:
+      release_body: ${{ steps.git-cliff.outputs.content }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate a changelog
+        uses: orhun/git-cliff-action@v4
+        id: git-cliff
+        with:
+          config: .github/cliff.toml
+          args: -vv --latest --strip header
+        env:
+          OUTPUT: CHANGES.md
+          GITHUB_REPO: ${{ github.repository }}
+
   # 创建 GitHub Release
   release:
-    needs: [build-windows, build-macos-intel, build-macos-silicon, build-linux]
+    needs: [build-windows, build-macos-intel, build-macos-silicon, build-linux, changelog]
     runs-on: ubuntu-latest
 
     steps:
@@ -225,8 +247,8 @@ jobs:
             ### Linux (x64)
             - 下载 `.deb` 文件
 
-            ### 更新内容
-            请查看 [提交历史](https://github.com/${{ github.repository }}/commits/${{ github.ref_name }})
+            ## 📝 更新内容
+            ${{ needs.changelog.outputs.release_body }}
 
             ---
 
