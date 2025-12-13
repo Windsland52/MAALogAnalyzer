@@ -33,9 +33,36 @@ jobs:
 
       - name: 安装 Rust 稳定版
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.arch }}-pc-windows-msvc
 
-      - name: 安装 WiX
-        run: dotnet tool install --global wix
+      - name: 缓存 Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: 手动安装 WiX (仅 ARM64)
+        if: matrix.arch == 'aarch64'
+        shell: pwsh
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          $wixUrl = "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip"
+          $wixZip = "$env:TEMP\wix.zip"
+          $wixDir = "$env:USERPROFILE\.wix"
+          
+          Write-Host "Downloading WiX..."
+          Invoke-WebRequest -Uri $wixUrl -OutFile $wixZip -UseBasicParsing
+          
+          Write-Host "Extracting WiX..."
+          New-Item -ItemType Directory -Force -Path $wixDir | Out-Null
+          Expand-Archive -Path $wixZip -DestinationPath $wixDir -Force
+          
+          Write-Host "Setting environment variables..."
+          echo "$wixDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "WIX=$wixDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          
+          Write-Host "WiX installed to: $wixDir"
+          Get-ChildItem $wixDir | Select-Object -First 5
 
       - name: 安装 pnpm
         uses: pnpm/action-setup@v2
