@@ -39,8 +39,6 @@ jobs:
 
       - name: 构建
         run: pnpm run build
-        env:
-          DEPLOY_PAGES: true
 
       - name: 配置 Pages
         uses: actions/configure-pages@v4

@@ -3,8 +3,8 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   plugins: [vue()],
-  // 只在 GitHub Pages 部署时使用仓库名作为 base
-  base: process.env.DEPLOY_PAGES ? '/MAALogAnalyzer/' : '/',
+  // 自定义域名直接使用根路径
+  base: '/',
   server: {
     port: 5173,
     open: true
