@@ -39,11 +39,13 @@ const handleNestedClick = (attemptIndex: number, nestedIndex: number) => {
 
 // 切换嵌套节点的显示/隐藏
 const toggleNestedNodes = (attemptIndex: number) => {
-  if (expandedAttempts.value.has(attemptIndex)) {
-    expandedAttempts.value.delete(attemptIndex)
+  const next = new Set(expandedAttempts.value)
+  if (next.has(attemptIndex)) {
+    next.delete(attemptIndex)
   } else {
-    expandedAttempts.value.add(attemptIndex)
+    next.add(attemptIndex)
   }
+  expandedAttempts.value = next
 }
 
 // 格式化 Next 列表项名称

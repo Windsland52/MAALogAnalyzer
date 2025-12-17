@@ -245,9 +245,9 @@ const formatNextName = (item: any) => {
               </n-tag>
             </n-descriptions-item>
 
-            <n-descriptions-item label="目标位置" :span="2">
+            <n-descriptions-item label="目标位置" :span="2" v-if="selectedNode.action_details?.box">
               <n-text code>
-                [{{ selectedNode.action_details?.box.join(', ') }}]
+                [{{ selectedNode.action_details.box.join(', ') }}]
               </n-text>
             </n-descriptions-item>
           </n-descriptions>
