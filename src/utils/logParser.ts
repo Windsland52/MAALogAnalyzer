@@ -1,42 +1,68 @@
+import { markRaw } from 'vue'
 import type { LogLine, EventNotification, TaskInfo, NodeInfo } from '../types'
+import { StringPool } from './stringPool'
+
+export interface ParseProgress {
+  current: number
+  total: number
+  percentage: number
+}
 
 export class LogParser {
-  private lines: LogLine[] = []
   private events: EventNotification[] = []
+  private stringPool = new StringPool()
 
   /**
-   * 解析日志文件内容
+   * 解析日志文件内容（异步分块处理）
    */
-  parseFile(content: string): LogLine[] {
+  async parseFile(
+    content: string,
+    onProgress?: (progress: ParseProgress) => void
+  ): Promise<void> {
     const rawLines = content.split('\n')
-    const lines: LogLine[] = []
     const events: EventNotification[] = []
+    const totalLines = rawLines.length
+    const chunkSize = 1000 // 每次处理 1000 行
 
-    for (let lineNum = 1; lineNum <= rawLines.length; lineNum++) {
-      const rawLine = rawLines[lineNum - 1].trim()
-      if (!rawLine) continue
+    // 分块处理
+    for (let startIdx = 0; startIdx < totalLines; startIdx += chunkSize) {
+      // 让出主线程，保持 UI 响应
+      await new Promise(resolve => setTimeout(resolve, 0))
 
-      try {
-        const parsed = this.parseLine(rawLine, lineNum)
-        if (parsed) {
-          lines.push(parsed)
+      const endIdx = Math.min(startIdx + chunkSize, totalLines)
 
-          // 检查是否是事件通知
-          if (rawLine.includes('!!!OnEventNotify!!!')) {
-            const event = this.parseEventNotification(parsed)
-            if (event) {
-              events.push(event)
+      // 处理当前块
+      for (let lineNum = startIdx + 1; lineNum <= endIdx; lineNum++) {
+        const rawLine = rawLines[lineNum - 1].trim()
+        if (!rawLine) continue
+
+        try {
+          const parsed = this.parseLine(rawLine, lineNum)
+          if (parsed) {
+            // 只提取事件通知，不存储所有行
+            if (rawLine.includes('!!!OnEventNotify!!!')) {
+              const event = this.parseEventNotification(parsed)
+              if (event) {
+                events.push(event)
+              }
             }
           }
+        } catch (e) {
+          console.warn(`解析第 ${lineNum} 行失败:`, e)
         }
-      } catch (e) {
-        console.warn(`解析第 ${lineNum} 行失败:`, e)
+      }
+
+      // 报告进度
+      if (onProgress) {
+        onProgress({
+          current: endIdx,
+          total: totalLines,
+          percentage: Math.round((endIdx / totalLines) * 100)
+        })
       }
     }
 
-    this.lines = lines
     this.events = events
-    return lines
   }
 
   /**
@@ -258,13 +284,13 @@ export class LogParser {
         if (taskId) {
           tasks.push({
             task_id: taskId,
-            entry: details.entry || '',
-            hash: details.hash || '',
-            uuid: details.uuid || '',
-            start_time: event.timestamp,
+            entry: this.stringPool.intern(details.entry || ''),
+            hash: this.stringPool.intern(details.hash || ''),
+            uuid: this.stringPool.intern(details.uuid || ''),
+            start_time: this.stringPool.intern(event.timestamp),
             status: 'running',
             nodes: [],
-            events: [event],
+            events: [], // 不再存储事件，节省内存
             duration: undefined,
             _startEventIndex: i
           })
@@ -285,8 +311,8 @@ export class LogParser {
 
         if (matchedTask) {
           matchedTask.status = message === 'Tasker.Task.Succeeded' ? 'succeeded' : 'failed'
-          matchedTask.end_time = event.timestamp
-          matchedTask.events.push(event)
+          matchedTask.end_time = this.stringPool.intern(event.timestamp)
+          // 不再存储事件
           matchedTask._endEventIndex = i
 
           // 计算持续时间
@@ -303,6 +329,13 @@ export class LogParser {
     for (const task of tasks) {
       task.nodes = this.getTaskNodes(task)
     }
+
+    // 清除事件数组，释放内存
+    this.events = []
+
+    // 清空字符串池（字符串已经被引用，池本身不再需要）
+    console.log(`字符串池统计: ${this.stringPool.size()} 个唯一字符串`)
+    this.stringPool.clear()
 
     return tasks
   }
@@ -348,10 +381,10 @@ export class LogParser {
       if ((message === 'Node.RecognitionNode.Succeeded' || message === 'Node.RecognitionNode.Failed')) {
         const nestedNode = {
           reco_id: details.reco_details?.reco_id || details.node_id,
-          name: details.name || '',
-          timestamp: event.timestamp,
+          name: this.stringPool.intern(details.name || ''),
+          timestamp: this.stringPool.intern(event.timestamp),
           status: message === 'Node.RecognitionNode.Succeeded' ? 'success' : 'failed',
-          reco_details: details.reco_details
+          reco_details: details.reco_details ? markRaw(details.reco_details) : undefined
         }
         nestedNodes.push(nestedNode)
       }
@@ -362,10 +395,10 @@ export class LogParser {
           // 创建识别尝试，并附加之前收集的嵌套节点
           const attempt = {
             reco_id: details.reco_id,
-            name: details.name || '',
-            timestamp: event.timestamp,
+            name: this.stringPool.intern(details.name || ''),
+            timestamp: this.stringPool.intern(event.timestamp),
             status: message === 'Node.Recognition.Succeeded' ? 'success' : 'failed',
-            reco_details: details.reco_details,
+            reco_details: details.reco_details ? markRaw(details.reco_details) : undefined,
             nested_nodes: nestedNodes.length > 0 ? nestedNodes.slice() : undefined
           }
           recognitionAttempts.push(attempt)
@@ -390,20 +423,20 @@ export class LogParser {
 
         const node: NodeInfo = {
           node_id: details.node_id,
-          name: nodeName,
-          timestamp: event.timestamp,
+          name: this.stringPool.intern(nodeName),
+          timestamp: this.stringPool.intern(event.timestamp),
           status: message === 'Node.PipelineNode.Succeeded' ? 'success' : 'failed',
           task_id: task.task_id,
-          reco_details: details.reco_details,
-          action_details: details.action_details,
-          focus: details.focus,
+          reco_details: details.reco_details ? markRaw(details.reco_details) : undefined,
+          action_details: details.action_details ? markRaw(details.action_details) : undefined,
+          focus: details.focus ? markRaw(details.focus) : undefined,
           next_list: currentNextList.map((item: any) => ({
-            name: item.name || '',
+            name: this.stringPool.intern(item.name || ''),
             anchor: item.anchor || false,
             jump_back: item.jump_back || false
           })),
           recognition_attempts: nodeRecognitionAttempts,
-          node_details: details.node_details
+          node_details: details.node_details ? markRaw(details.node_details) : undefined
         }
         nodes.push(node)
 
@@ -422,12 +455,5 @@ export class LogParser {
    */
   getEvents(): EventNotification[] {
     return this.events
-  }
-
-  /**
-   * 获取所有日志行
-   */
-  getLines(): LogLine[] {
-    return this.lines
   }
 }

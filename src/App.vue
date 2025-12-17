@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, h } from 'vue'
-import { NSplit, NCard, NFlex, NButton, NIcon, NDropdown, NModal, NText, NDivider, NTag, useMessage } from 'naive-ui'
+import { NSplit, NCard, NFlex, NButton, NIcon, NDropdown, NModal, NText, NDivider, NTag, NProgress, useMessage } from 'naive-ui'
 import ProcessView from './views/ProcessView.vue'
 import DetailView from './views/DetailView.vue'
 import TextSearchView from './views/TextSearchView.vue'
@@ -65,6 +65,8 @@ const selectedNode = ref<NodeInfo | null>(null)
 const selectedRecognitionIndex = ref<number | null>(null)
 const selectedNestedIndex = ref<number | null>(null)
 const loading = ref(false)
+const parseProgress = ref(0)
+const showParsingModal = ref(false)
 
 // 消息提示
 const message = useMessage()
@@ -77,7 +79,7 @@ const handleFileUpload = async (file: File) => {
   loading.value = true
   try {
     const content = await file.text()
-    processLogContent(content)
+    await processLogContent(content)
   } catch (error) {
     message.error(getErrorMessage(error), { duration: 5000 })
   } finally {
@@ -86,10 +88,10 @@ const handleFileUpload = async (file: File) => {
 }
 
 // 处理文件内容
-const handleContentUpload = (content: string) => {
+const handleContentUpload = async (content: string) => {
   loading.value = true
   try {
-    processLogContent(content)
+    await processLogContent(content)
   } catch (error) {
     message.error(getErrorMessage(error), { duration: 5000 })
   } finally {
@@ -98,17 +100,26 @@ const handleContentUpload = (content: string) => {
 }
 
 // 处理日志内容
-const processLogContent = (content: string) => {
-  // 移除内部 try-catch，让错误抛出给调用方（handleFileUpload/handleContentUpload）统一处理
-  const entries = parser.parseFile(content)
+const processLogContent = async (content: string) => {
+  // 显示解析进度模态框
+  showParsingModal.value = true
+  parseProgress.value = 0
 
-  if (entries.length === 0) {
-    return
-  }
+  try {
+    // 异步解析，带进度回调
+    await parser.parseFile(content, (progress) => {
+      parseProgress.value = progress.percentage
+    })
 
-  tasks.value = parser.getTasks()
-  if (tasks.value.length > 0) {
-    selectedTask.value = tasks.value[0]
+    // 解析完成，获取任务
+    tasks.value = parser.getTasks()
+    if (tasks.value.length > 0) {
+      selectedTask.value = tasks.value[0]
+    }
+  } finally {
+    // 关闭进度模态框
+    showParsingModal.value = false
+    parseProgress.value = 0
   }
 }
 
@@ -139,6 +150,46 @@ const handleSelectNested = (node: NodeInfo, attemptIndex: number, nestedIndex: n
   selectedNode.value = node
   selectedRecognitionIndex.value = attemptIndex
   selectedNestedIndex.value = nestedIndex
+}
+
+// 临时调试函数 - 分析内存占用
+const analyzeMemory = () => {
+  console.log('=== 数据统计 ===')
+  console.log('任务数量:', tasks.value.length)
+
+  const totalNodes = tasks.value.reduce((sum, t) => sum + t.nodes.length, 0)
+  console.log('总节点数:', totalNodes)
+
+  const totalAttempts = tasks.value.reduce((sum, t) =>
+    sum + t.nodes.reduce((s, n) => s + (n.recognition_attempts?.length || 0), 0), 0)
+  console.log('总识别尝试数:', totalAttempts)
+
+  // 检查字符串重复
+  const nodeNames = new Set()
+  const timestamps = new Set()
+  tasks.value.forEach(t => {
+    t.nodes.forEach(n => {
+      nodeNames.add(n.name)
+      timestamps.add(n.timestamp)
+      n.recognition_attempts?.forEach(a => {
+        nodeNames.add(a.name)
+        timestamps.add(a.timestamp)
+      })
+    })
+  })
+  console.log('唯一节点名称数:', nodeNames.size)
+  console.log('唯一时间戳数:', timestamps.size)
+  console.log('字符串重复率:', ((totalNodes + totalAttempts - nodeNames.size) / (totalNodes + totalAttempts) * 100).toFixed(1) + '%')
+
+  // 采样
+  console.log('\n=== 采样数据 ===')
+  console.log('第一个任务:', tasks.value[0])
+  console.log('第一个节点:', tasks.value[0]?.nodes[0])
+}
+
+// 暴露到 window 以便在控制台调用
+if (typeof window !== 'undefined') {
+  (window as any).analyzeMemory = analyzeMemory
 }
 </script>
 
@@ -377,6 +428,34 @@ const handleSelectNested = (node: NodeInfo, attemptIndex: number, nestedIndex: n
             © 2025
           </n-text>
         </n-flex>
+      </n-flex>
+    </n-modal>
+
+    <!-- 解析进度对话框 -->
+    <n-modal
+      v-model:show="showParsingModal"
+      preset="card"
+      title="正在解析日志文件"
+      style="width: 500px"
+      :bordered="false"
+      :closable="false"
+      :mask-closable="false"
+      :close-on-esc="false"
+    >
+      <n-flex vertical style="gap: 20px; padding: 20px 0">
+        <n-text style="text-align: center; font-size: 16px">
+          解析进度：{{ parseProgress }}%
+        </n-text>
+        <n-progress
+          type="line"
+          :percentage="parseProgress"
+          :show-indicator="false"
+          :height="24"
+          status="success"
+        />
+        <n-text depth="3" style="text-align: center; font-size: 13px">
+          正在分块处理日志，请稍候...
+        </n-text>
       </n-flex>
     </n-modal>
   </div>
