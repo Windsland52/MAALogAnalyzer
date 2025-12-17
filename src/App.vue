@@ -68,6 +68,24 @@ const loading = ref(false)
 const parseProgress = ref(0)
 const showParsingModal = ref(false)
 
+// DetailView 折叠控制
+const detailViewCollapsed = ref(false)
+const detailViewSavedSize = ref(0.6)
+
+// 切换 DetailView 折叠状态
+const toggleDetailView = () => {
+  if (detailViewCollapsed.value) {
+    // 展开：恢复保存的大小
+    splitSize.value = detailViewSavedSize.value
+    detailViewCollapsed.value = false
+  } else {
+    // 折叠：保存当前大小，然后完全隐藏
+    detailViewSavedSize.value = splitSize.value
+    splitSize.value = 1  // 左侧占100%，右侧完全隐藏
+    detailViewCollapsed.value = true
+  }
+}
+
 // 消息提示
 const message = useMessage()
 
@@ -258,7 +276,7 @@ if (typeof window !== 'undefined') {
       <div v-if="viewMode === 'analysis'" style="height: 100%">
         <n-split
           v-model:size="splitSize"
-          :max="0.8"
+          :max="1"
           :min="0.4"
           style="height: 100%"
         >
@@ -268,6 +286,8 @@ if (typeof window !== 'undefined') {
               :selected-task="selectedTask"
               :loading="loading"
               :parser="parser"
+              :detail-view-collapsed="detailViewCollapsed"
+              :on-expand-detail-view="toggleDetailView"
               @select-task="handleSelectTask"
               @upload-file="handleFileUpload"
               @upload-content="handleContentUpload"
@@ -277,12 +297,31 @@ if (typeof window !== 'undefined') {
             />
           </template>
           <template #2>
-            <detail-view
-              :selected-node="selectedNode"
-              :selected-task="selectedTask"
-              :selected-recognition-index="selectedRecognitionIndex"
-              :selected-nested-index="selectedNestedIndex"
-            />
+            <n-card size="small" title="节点详情" style="height: 100%; display: flex; flex-direction: column; position: relative" content-style="padding: 0; flex: 1; min-height: 0; overflow: hidden">
+              <!-- 折叠按钮 - 左边缘中间 -->
+              <n-button
+                circle
+                size="small"
+                @click="toggleDetailView"
+                style="position: absolute; left: -12px; top: 50%; transform: translateY(-50%); z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.15)"
+              >
+                <template #icon>
+                  <n-icon>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                      <!-- 展开时显示向右箭头，表示点击后向右折叠 -->
+                      <path fill="currentColor" d="M8.59 16.59L10 18l6-6l-6-6l-1.41 1.41L13.17 12z"/>
+                    </svg>
+                  </n-icon>
+                </template>
+              </n-button>
+              <detail-view
+                :selected-node="selectedNode"
+                :selected-task="selectedTask"
+                :selected-recognition-index="selectedRecognitionIndex"
+                :selected-nested-index="selectedNestedIndex"
+                style="height: 100%"
+              />
+            </n-card>
           </template>
         </n-split>
       </div>
@@ -305,7 +344,7 @@ if (typeof window !== 'undefined') {
         <template #1>
           <n-split
             v-model:size="splitSize"
-            :max="0.8"
+            :max="1"
             :min="0.4"
             style="height: 100%"
           >
@@ -315,6 +354,8 @@ if (typeof window !== 'undefined') {
                 :selected-task="selectedTask"
                 :loading="loading"
                 :parser="parser"
+                :detail-view-collapsed="detailViewCollapsed"
+                :on-expand-detail-view="toggleDetailView"
                 @select-task="handleSelectTask"
                 @upload-file="handleFileUpload"
                 @upload-content="handleContentUpload"
@@ -324,12 +365,31 @@ if (typeof window !== 'undefined') {
               />
             </template>
             <template #2>
-              <detail-view
-                :selected-node="selectedNode"
-                :selected-task="selectedTask"
-                :selected-recognition-index="selectedRecognitionIndex"
-                :selected-nested-index="selectedNestedIndex"
-              />
+              <n-card size="small" title="节点详情" style="height: 100%; display: flex; flex-direction: column; position: relative" content-style="padding: 0; flex: 1; min-height: 0; overflow: hidden">
+                <!-- 折叠按钮 - 左边缘中间 -->
+                <n-button
+                  circle
+                  size="small"
+                  @click="toggleDetailView"
+                  style="position: absolute; left: -12px; top: 50%; transform: translateY(-50%); z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.15)"
+                >
+                  <template #icon>
+                    <n-icon>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <!-- 展开时显示向右箭头，表示点击后向右折叠 -->
+                        <path fill="currentColor" d="M8.59 16.59L10 18l6-6l-6-6l-1.41 1.41L13.17 12z"/>
+                      </svg>
+                    </n-icon>
+                  </template>
+                </n-button>
+                <detail-view
+                  :selected-node="selectedNode"
+                  :selected-task="selectedTask"
+                  :selected-recognition-index="selectedRecognitionIndex"
+                  :selected-nested-index="selectedNestedIndex"
+                  style="height: 100%"
+                />
+              </n-card>
             </template>
           </n-split>
         </template>

@@ -16,6 +16,8 @@ const props = defineProps<{
   selectedTask: TaskInfo | null
   loading: boolean
   parser: LogParser
+  detailViewCollapsed?: boolean
+  onExpandDetailView?: () => void
 }>()
 
 const emit = defineEmits<{
@@ -32,6 +34,25 @@ const activeTaskIndex = ref(0)
 
 // 是否在 Tauri 环境
 const isInTauri = ref(isTauri())
+
+// 任务列表折叠状态
+const taskListCollapsed = ref(false)
+const taskListSize = ref(0.25)
+const taskListSavedSize = ref(0.25)
+
+// 切换任务列表折叠状态
+const toggleTaskList = () => {
+  if (taskListCollapsed.value) {
+    // 展开：恢复保存的大小
+    taskListSize.value = taskListSavedSize.value
+    taskListCollapsed.value = false
+  } else {
+    // 折叠：保存当前大小，然后完全隐藏
+    taskListSavedSize.value = taskListSize.value
+    taskListSize.value = 0
+    taskListCollapsed.value = true
+  }
+}
 
 // 当前任务的节点列表
 const currentNodes = computed<NodeInfo[]>(() => {
@@ -144,7 +165,7 @@ const handleNestedClick = (node: NodeInfo, attemptIndex: number, nestedIndex: nu
           </template>
           重新打开
         </n-button>
-        
+
         <!-- Web 环境 -->
         <n-upload
           v-else
@@ -164,14 +185,30 @@ const handleNestedClick = (node: NodeInfo, attemptIndex: number, nestedIndex: nu
       <!-- 左右分栏布局 -->
       <n-split
         direction="horizontal"
-        :default-size="0.25"
-        :min="0.15"
+        v-model:size="taskListSize"
+        :min="0"
         :max="0.4"
         style="flex: 1; min-height: 0"
       >
         <!-- 左侧：任务列表 -->
         <template #1>
-          <n-card size="small" title="任务列表" style="height: 100%; display: flex; flex-direction: column" content-style="padding: 0; flex: 1; min-height: 0; overflow: hidden">
+          <n-card size="small" title="任务列表" style="height: 100%; display: flex; flex-direction: column; position: relative" content-style="padding: 0; flex: 1; min-height: 0; overflow: hidden">
+            <!-- 折叠按钮 - 右边缘中间 -->
+            <n-button
+              circle
+              size="small"
+              @click="toggleTaskList"
+              style="position: absolute; right: -12px; top: 50%; transform: translateY(-50%); z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.15)"
+            >
+              <template #icon>
+                <n-icon>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <!-- 展开时显示向左箭头，表示点击后向左折叠 -->
+                    <path fill="currentColor" d="M15.41 7.41L14 6l-6 6l6 6l1.41-1.41L10.83 12z"/>
+                  </svg>
+                </n-icon>
+              </template>
+            </n-button>
             <n-scrollbar style="height: 100%; max-height: 100%">
               <n-list hoverable clickable>
                 <n-list-item
@@ -217,7 +254,43 @@ const handleNestedClick = (node: NodeInfo, attemptIndex: number, nestedIndex: nu
 
         <!-- 右侧：节点详情 -->
         <template #2>
-          <n-card size="small" title="节点时间线" style="height: 100%; display: flex; flex-direction: column" content-style="padding: 0; flex: 1; min-height: 0; overflow: hidden">
+          <n-card size="small" title="节点时间线" style="height: 100%; display: flex; flex-direction: column; position: relative" content-style="padding: 0; flex: 1; min-height: 0; overflow: hidden">
+            <!-- 展开任务列表按钮（仅在任务列表折叠时显示） -->
+            <n-button
+              v-if="taskListCollapsed"
+              circle
+              size="small"
+              @click="toggleTaskList"
+              style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.15)"
+            >
+              <template #icon>
+                <n-icon>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <!-- 折叠时显示向右箭头，表示点击后从左侧展开 -->
+                    <path fill="currentColor" d="M8.59 16.59L10 18l6-6l-6-6l-1.41 1.41L13.17 12z"/>
+                  </svg>
+                </n-icon>
+              </template>
+            </n-button>
+
+            <!-- 展开节点详情按钮（仅在节点详情折叠时显示） -->
+            <n-button
+              v-if="detailViewCollapsed && onExpandDetailView"
+              circle
+              size="small"
+              @click="onExpandDetailView"
+              style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.15)"
+            >
+              <template #icon>
+                <n-icon>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <!-- 折叠时显示向左箭头，表示点击后从右侧展开 -->
+                    <path fill="currentColor" d="M15.41 7.41L14 6l-6 6l6 6l1.41-1.41L10.83 12z"/>
+                  </svg>
+                </n-icon>
+              </template>
+            </n-button>
+
             <n-scrollbar style="height: 100%; max-height: 100%">
               <div v-if="currentNodes.length === 0" style="padding: 40px 0">
                 <n-empty description="暂无节点数据" />
