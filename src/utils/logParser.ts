@@ -364,24 +364,29 @@ export class LogParser {
       }
 
       // 收集识别事件（普通识别）
-      if ((message === 'Node.Recognition.Succeeded' || message === 'Node.Recognition.Failed')
-          && details.task_id === task.task_id) {
-        // 创建识别尝试，并附加之前收集的嵌套节点
-        const attempt = {
-          reco_id: details.reco_id,
-          name: details.name || '',
-          timestamp: event.timestamp,
-          status: message === 'Node.Recognition.Succeeded' ? 'success' : 'failed',
-          reco_details: details.reco_details,
-          nested_nodes: nestedNodes.length > 0 ? nestedNodes.slice() : undefined
+      if ((message === 'Node.Recognition.Succeeded' || message === 'Node.Recognition.Failed')) {
+        if (details.task_id === task.task_id) {
+          // 创建识别尝试，并附加之前收集的嵌套节点
+          const attempt = {
+            reco_id: details.reco_id,
+            name: details.name || '',
+            timestamp: event.timestamp,
+            status: message === 'Node.Recognition.Succeeded' ? 'success' : 'failed',
+            reco_details: details.reco_details,
+            nested_nodes: nestedNodes.length > 0 ? nestedNodes.slice() : undefined
+          }
+          recognitionAttempts.push(attempt)
+          // 清空嵌套节点数组
+          nestedNodes.length = 0
+        } else {
+          // 其他任务的 Recognition 事件，清空嵌套节点数组以防止跨任务污染
+          nestedNodes.length = 0
         }
-        recognitionAttempts.push(attempt)
-        // 清空嵌套节点数组
-        nestedNodes.length = 0
       }
 
-      // 当遇到 PipelineNode.Succeeded 时，创建节点并关联识别历史
-      if (message === 'Node.PipelineNode.Succeeded' && details.task_id === task.task_id) {
+      // 当遇到 PipelineNode.Succeeded 或 Failed 时，创建节点并关联识别历史
+      if ((message === 'Node.PipelineNode.Succeeded' || message === 'Node.PipelineNode.Failed')
+          && details.task_id === task.task_id) {
         // 使用 node_details.name 作为节点名称（当前执行的节点）
         // details.name 是父节点/上下文节点的名称
         const nodeName = details.node_details?.name || details.name || ''
@@ -396,7 +401,7 @@ export class LogParser {
           node_id: details.node_id,
           name: nodeName,
           timestamp: event.timestamp,
-          status: 'success',
+          status: message === 'Node.PipelineNode.Succeeded' ? 'success' : 'failed',
           task_id: task.task_id,
           reco_details: details.reco_details,
           action_details: details.action_details,

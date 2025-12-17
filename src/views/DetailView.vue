@@ -57,19 +57,9 @@ const hasRecognition = computed(() => {
   return !!currentRecognition.value
 })
 
-// 是否有动作详情
+// 是否有动作详情（节点最终动作，与当前识别尝试解耦）
 const hasAction = computed(() => {
-  if (!props.selectedNode?.action_details) return false
-
-  // 如果选中了特定的识别尝试
-  if (props.selectedRecognitionIndex !== null && props.selectedRecognitionIndex !== undefined) {
-    const attempt = props.selectedNode.recognition_attempts[props.selectedRecognitionIndex]
-    // 只有识别成功的尝试才显示动作详情
-    return attempt?.status === 'success'
-  }
-
-  // 未选中特定识别尝试时，显示节点的动作详情
-  return true
+  return !!props.selectedNode?.action_details
 })
 
 // 是否选中了特定的识别尝试
@@ -222,8 +212,8 @@ const formatNextName = (item: any) => {
           </div>
         </n-card>
 
-        <!-- 动作详情 -->
-        <n-card title="⚡ 动作详情" v-if="hasAction">
+        <!-- 节点最终动作 -->
+        <n-card title="⚡ 节点最终动作" v-if="hasAction">
           <n-descriptions :column="2" size="small" label-placement="left" bordered>
             <n-descriptions-item label="动作 ID">
               {{ selectedNode.action_details?.action_id }}
