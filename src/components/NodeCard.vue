@@ -69,7 +69,7 @@ const actionButtonType = computed(() => {
       size="small"
       :bordered="true"
     >
-      <!-- Header: 节点名称按钮 + task 标签 -->
+      <!-- Header: 节点名称按钮 + PipelineNode 标签 -->
       <template #header>
         <n-flex justify="space-between" align="center">
           <n-button
@@ -78,7 +78,7 @@ const actionButtonType = computed(() => {
           >
             {{ node.name }}
           </n-button>
-          <n-tag size="small">task</n-tag>
+          <n-tag size="small">PipelineNode</n-tag>
         </n-flex>
       </template>
 
