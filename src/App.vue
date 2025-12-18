@@ -288,7 +288,7 @@ if (typeof window !== 'undefined') {
     <!-- 主内容区域 -->
     <div style="flex: 1; min-height: 0">
       <!-- 日志分析模式 -->
-      <div v-if="viewMode === 'analysis'" style="height: 100%">
+      <div v-show="viewMode === 'analysis'" style="height: 100%">
         <n-split
           v-model:size="splitSize"
           :max="1"
@@ -343,14 +343,12 @@ if (typeof window !== 'undefined') {
         </n-split>
       </div>
 
-      <!-- 文本搜索模式 -->
-      <div v-else-if="viewMode === 'search'" style="height: 100%">
-        <text-search-view :is-dark="isDark" style="height: 100%" />
-      </div>
+      <!-- 文本搜索模式（独立显示，占据整个屏幕） -->
+      <div v-show="viewMode === 'search'" id="text-search-standalone" style="height: 100%"></div>
 
       <!-- 分屏模式 -->
       <n-split
-        v-else-if="viewMode === 'split'"
+        v-show="viewMode === 'split'"
         direction="vertical"
         :default-size="0.5"
         :min="0.2"
@@ -413,12 +411,17 @@ if (typeof window !== 'undefined') {
           </n-split>
         </template>
 
-        <!-- 下半部分：文本搜索 -->
+        <!-- 下半部分：文本搜索容器 -->
         <template #2>
-          <text-search-view :is-dark="isDark" style="height: 100%" />
+          <div id="text-search-split" style="height: 100%"></div>
         </template>
       </n-split>
     </div>
+
+    <!-- 共享的文本搜索视图实例（使用 Teleport 传送到不同位置） -->
+    <Teleport :to="viewMode === 'search' ? '#text-search-standalone' : '#text-search-split'" :disabled="viewMode === 'analysis'">
+      <text-search-view v-if="viewMode === 'search' || viewMode === 'split'" :is-dark="isDark" style="height: 100%" />
+    </Teleport>
     
     <!-- 关于对话框 -->
     <n-modal
